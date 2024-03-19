@@ -6,10 +6,6 @@ import torch.nn.functional as F
 
 
 class SoftTarget(nn.Module):
-	'''
-	Distilling the Knowledge in a Neural Network
-	https://arxiv.org/pdf/1503.02531.pdf
-	'''
 	def __init__(self, T):
 		super(SoftTarget, self).__init__()
 		self.T = T
