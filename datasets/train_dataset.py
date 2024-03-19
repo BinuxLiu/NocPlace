@@ -38,6 +38,7 @@ class TrainDataset(torch.utils.data.Dataset):
         self.current_group = current_group
         self.dataset_folder = dataset_folder
         self.augmentation_device = args.augmentation_device
+        self.use_ikt = args.use_ikt
         
         # dataset_name should be either "processed", "small" or "raw", if you're using SF-XL
         dataset_name = os.path.basename(dataset_folder)
@@ -92,7 +93,12 @@ class TrainDataset(torch.utils.data.Dataset):
         if self.augmentation_device == "cpu":
             tensor_image = self.transform(tensor_image)
         
-        return tensor_image, class_num, image_path
+        if self.use_ikt:
+            inherited_descriptor = np.load(image_path.replace("train", "train_feat").replace(".jpg", ".npy"))
+        else:
+            inherited_descriptor = np.zeros(1)
+
+        return tensor_image, class_num, image_path, inherited_descriptor
     
     def get_images_num(self):
         """Return the number of images within this group."""
