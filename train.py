@@ -1,217 +1,179 @@
 
-import math
+import sys
 import torch
 import logging
 import numpy as np
 from tqdm import tqdm
-import torch.nn as nn
 import multiprocessing
-from os.path import join
 from datetime import datetime
-import torchvision.transforms as transforms
-from torch.utils.data.dataloader import DataLoader
+import torchvision.transforms as T
 
-import util
 import test
+import util
 import parser
 import commons
-import datasets_ws
-from model import network
-from model.sync_batchnorm import convert_model
-from model.functional import sare_ind, sare_joint
+import cosface_loss
+import augmentations
+from cosplace_model import cosplace_network
+from datasets.test_dataset import TestDataset
+from datasets.train_dataset import TrainDataset
 
 torch.backends.cudnn.benchmark = True  # Provides a speedup
-#### Initial setup: parser, logging...
+
 args = parser.parse_arguments()
 start_time = datetime.now()
-args.save_dir = join("logs", args.save_dir, start_time.strftime('%Y-%m-%d_%H-%M-%S'))
-commons.setup_logging(args.save_dir)
+args.output_folder = f"logs/{args.save_dir}/{start_time.strftime('%Y-%m-%d_%H-%M-%S')}"
 commons.make_deterministic(args.seed)
+commons.setup_logging(args.output_folder, console="debug")
+logging.info(" ".join(sys.argv))
 logging.info(f"Arguments: {args}")
-logging.info(f"The outputs are being saved in {args.save_dir}")
-logging.info(f"Using {torch.cuda.device_count()} GPUs and {multiprocessing.cpu_count()} CPUs")
+logging.info(f"The outputs are being saved in {args.output_folder}")
 
-#### Creation of Datasets
-logging.debug(f"Loading dataset {args.dataset_name} from folder {args.datasets_folder}")
+#### Model
+model = cosplace_network.GeoLocalizationNet(args.backbone, args.fc_output_dim, args.train_all_layers)
 
-triplets_ds = datasets_ws.TripletsDataset(args, args.datasets_folder, args.dataset_name, "train", args.negs_num_per_query)
-logging.info(f"Train query set: {triplets_ds}")
+logging.info(f"There are {torch.cuda.device_count()} GPUs and {multiprocessing.cpu_count()} CPUs.")
 
-val_ds = datasets_ws.BaseDataset(args, args.datasets_folder, args.dataset_name, "val")
-logging.info(f"Val set: {val_ds}")
+if args.resume_model is not None:
+    logging.debug(f"Loading model from {args.resume_model}")
+    model_state_dict = torch.load(args.resume_model)
+    model.load_state_dict(model_state_dict)
 
-test_ds = datasets_ws.BaseDataset(args, args.datasets_folder, args.dataset_name, "test")
+model = model.to(args.device).train()
+
+#### Optimizer
+criterion = torch.nn.CrossEntropyLoss()
+model_optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+
+#### Datasets
+groups = [TrainDataset(args, args.train_set_folder, M=args.M, alpha=args.alpha, N=args.N, L=args.L,
+                       current_group=n, min_images_per_class=args.min_images_per_class) for n in range(args.groups_num)]
+# Each group has its own classifier, which depends on the number of classes in the group
+classifiers = [cosface_loss.MarginCosineProduct(args.fc_output_dim, len(group)) for group in groups]
+classifiers_optimizers = [torch.optim.Adam(classifier.parameters(), lr=args.classifiers_lr) for classifier in classifiers]
+
+logging.info(f"Using {len(groups)} groups")
+logging.info(f"The {len(groups)} groups have respectively the following number of classes {[len(g) for g in groups]}")
+logging.info(f"The {len(groups)} groups have respectively the following number of images {[g.get_images_num() for g in groups]}")
+
+val_ds = TestDataset(args.val_set_folder, positive_dist_threshold=args.positive_dist_threshold,
+                     image_size=args.image_size, resize_test_imgs=args.resize_test_imgs)
+test_ds = TestDataset(args.test_set_folder, queries_folder="queries_v1",
+                      positive_dist_threshold=args.positive_dist_threshold,
+                      image_size=args.image_size, resize_test_imgs=args.resize_test_imgs)
+logging.info(f"Validation set: {val_ds}")
 logging.info(f"Test set: {test_ds}")
 
-#### Initialize model
-model = network.GeoLocalizationNet(args)
-model = model.to(args.device)
-if args.aggregation in ["netvlad", "crn"]:  # If using NetVLAD layer, initialize it
-    if not args.resume:
-        triplets_ds.is_inference = True
-        model.aggregation.initialize_netvlad_layer(args, triplets_ds, model.backbone)
-    args.features_dim *= args.netvlad_clusters
-
-model = torch.nn.DataParallel(model)
-
-#### Setup Optimizer and Loss
-if args.aggregation == "crn":
-    crn_params = list(model.module.aggregation.crn.parameters())
-    net_params = list(model.module.backbone.parameters()) + \
-        list([m[1] for m in model.module.aggregation.named_parameters() if not m[0].startswith('crn')])
-    if args.optim == "adam":
-        optimizer = torch.optim.Adam([{'params': crn_params, 'lr': args.lr_crn_layer},
-                                      {'params': net_params, 'lr': args.lr_crn_net}])
-        logging.info("You're using CRN with Adam, it is advised to use SGD")
-    elif args.optim == "sgd":
-        optimizer = torch.optim.SGD([{'params': crn_params, 'lr': args.lr_crn_layer, 'momentum': 0.9, 'weight_decay': 0.001},
-                                     {'params': net_params, 'lr': args.lr_crn_net, 'momentum': 0.9, 'weight_decay': 0.001}])
+#### Resume
+if args.resume_train:
+    model, model_optimizer, classifiers, classifiers_optimizers, best_val_recall1, start_epoch_num = \
+        util.resume_train(args, args.output_folder, model, model_optimizer, classifiers, classifiers_optimizers)
+    model = model.to(args.device)
+    epoch_num = start_epoch_num - 1
+    logging.info(f"Resuming from epoch {start_epoch_num} with best R@1 {best_val_recall1:.1f} from checkpoint {args.resume_train}")
 else:
-    if args.optim == "adam":
-        optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
-    elif args.optim == "sgd":
-        optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=0.001)
+    best_val_recall1 = start_epoch_num = 0
 
-if args.criterion == "triplet":
-    criterion_triplet = nn.TripletMarginLoss(margin=args.margin, p=2, reduction="sum")
-elif args.criterion == "sare_ind":
-    criterion_triplet = sare_ind
-elif args.criterion == "sare_joint":
-    criterion_triplet = sare_joint
-
-#### Resume model, optimizer, and other training parameters
-if args.resume:
-    if args.aggregation != 'crn':
-        model, optimizer, best_r5, start_epoch_num, not_improved_num = util.resume_train(args, model, optimizer)
-    else:
-        # CRN uses pretrained NetVLAD, then requires loading with strict=False and
-        # does not load the optimizer from the checkpoint file.
-        model, _, best_r5, start_epoch_num, not_improved_num = util.resume_train(args, model, strict=False)
-    logging.info(f"Resuming from epoch {start_epoch_num} with best recall@5 {best_r5:.1f}")
-else:
-    best_r5 = start_epoch_num = not_improved_num = 0
-
-if args.backbone.startswith('vit'):
-    logging.info(f"Output dimension of the model is {args.features_dim}")
-else:
-    logging.info(f"Output dimension of the model is {args.features_dim}, with {util.get_flops(model, args.resize)}")
+#### Train / evaluation loop
+logging.info("Start training ...")
+logging.info(f"There are {len(groups[0])} classes for the first group, " +
+             f"each epoch has {args.iterations_per_epoch} iterations " +
+             f"with batch_size {args.batch_size}, therefore the model sees each class (on average) " +
+             f"{args.iterations_per_epoch * args.batch_size / len(groups[0]):.1f} times per epoch")
 
 
-if torch.cuda.device_count() >= 2:
-    # When using more than 1GPU, use sync_batchnorm for torch.nn.DataParallel
-    model = convert_model(model)
-    model = model.cuda()
+if args.augmentation_device == "cuda":
+    gpu_augmentation = T.Compose([
+            augmentations.DeviceAgnosticColorJitter(brightness=args.brightness,
+                                                    contrast=args.contrast,
+                                                    saturation=args.saturation,
+                                                    hue=args.hue),
+            augmentations.DeviceAgnosticRandomResizedCrop([args.image_size, args.image_size],
+                                                          scale=[1-args.random_resized_crop, 1]),
+            T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ])
 
-#### Training loop
+if args.use_amp16:
+    scaler = torch.cuda.amp.GradScaler()
+
 for epoch_num in range(start_epoch_num, args.epochs_num):
-    logging.info(f"Start training epoch: {epoch_num:02d}")
     
+    #### Train
     epoch_start_time = datetime.now()
+    # Select classifier and dataloader according to epoch
+    current_group_num = epoch_num % args.groups_num
+    classifiers[current_group_num] = classifiers[current_group_num].to(args.device)
+    util.move_to_device(classifiers_optimizers[current_group_num], args.device)
+    
+    dataloader = commons.InfiniteDataLoader(groups[current_group_num], num_workers=args.num_workers,
+                                            batch_size=args.batch_size, shuffle=True,
+                                            pin_memory=(args.device == "cuda"), drop_last=True)
+    
+    dataloader_iterator = iter(dataloader)
+    model = model.train()
+    
     epoch_losses = np.zeros((0, 1), dtype=np.float32)
+    for iteration in tqdm(range(args.iterations_per_epoch), ncols=100):
+        images, targets, _ = next(dataloader_iterator)
+        images, targets = images.to(args.device), targets.to(args.device)
+        
+        if args.augmentation_device == "cuda":
+            images = gpu_augmentation(images)
+        
+        model_optimizer.zero_grad()
+        classifiers_optimizers[current_group_num].zero_grad()
+        
+        if not args.use_amp16:
+            descriptors = model(images)
+            output = classifiers[current_group_num](descriptors, targets)
+            loss = criterion(output, targets)
+            loss.backward()
+            epoch_losses = np.append(epoch_losses, loss.item())
+            del loss, output, images
+            model_optimizer.step()
+            classifiers_optimizers[current_group_num].step()
+        else:  # Use AMP 16
+            with torch.cuda.amp.autocast():
+                descriptors = model(images)
+                output = classifiers[current_group_num](descriptors, targets)
+                loss = criterion(output, targets)
+            scaler.scale(loss).backward()
+            epoch_losses = np.append(epoch_losses, loss.item())
+            del loss, output, images
+            scaler.step(model_optimizer)
+            scaler.step(classifiers_optimizers[current_group_num])
+            scaler.update()
     
-    # How many loops should an epoch last (default is 5000/1000=5)
-    loops_num = math.ceil(args.queries_per_epoch / args.cache_refresh_rate)
-    for loop_num in range(loops_num):
-        logging.debug(f"Cache: {loop_num} / {loops_num}")
-        
-        # Compute triplets to use in the triplet loss
-        triplets_ds.is_inference = True
-        triplets_ds.compute_triplets(args, model)
-        triplets_ds.is_inference = False
-        
-        triplets_dl = DataLoader(dataset=triplets_ds, num_workers=args.num_workers,
-                                 batch_size=args.train_batch_size,
-                                 collate_fn=datasets_ws.collate_fn,
-                                 pin_memory=(args.device == "cuda"),
-                                 drop_last=True)
-        
-        model = model.train()
-        
-        # images shape: (train_batch_size*12)*3*H*W ; by default train_batch_size=4, H=480, W=640
-        # triplets_local_indexes shape: (train_batch_size*10)*3 ; because 10 triplets per query
-        for images, triplets_local_indexes, _ in tqdm(triplets_dl, ncols=100):
-            
-            # Flip all triplets or none
-            if args.horizontal_flip:
-                images = transforms.RandomHorizontalFlip()(images)
-            
-            # Compute features of all images (images contains queries, positives and negatives)
-            features = model(images.to(args.device))
-            loss_triplet = 0
-            
-            if args.criterion == "triplet":
-                triplets_local_indexes = torch.transpose(
-                    triplets_local_indexes.view(args.train_batch_size, args.negs_num_per_query, 3), 1, 0)
-                for triplets in triplets_local_indexes:
-                    queries_indexes, positives_indexes, negatives_indexes = triplets.T
-                    loss_triplet += criterion_triplet(features[queries_indexes],
-                                                      features[positives_indexes],
-                                                      features[negatives_indexes])
-            elif args.criterion == 'sare_joint':
-                # sare_joint needs to receive all the negatives at once
-                triplet_index_batch = triplets_local_indexes.view(args.train_batch_size, 10, 3)
-                for batch_triplet_index in triplet_index_batch:
-                    q = features[batch_triplet_index[0, 0]].unsqueeze(0)  # obtain query as tensor of shape 1xn_features
-                    p = features[batch_triplet_index[0, 1]].unsqueeze(0)  # obtain positive as tensor of shape 1xn_features
-                    n = features[batch_triplet_index[:, 2]]               # obtain negatives as tensor of shape 10xn_features
-                    loss_triplet += criterion_triplet(q, p, n)
-            elif args.criterion == "sare_ind":
-                for triplet in triplets_local_indexes:
-                    # triplet is a 1-D tensor with the 3 scalars indexes of the triplet
-                    q_i, p_i, n_i = triplet
-                    loss_triplet += criterion_triplet(features[q_i:q_i+1], features[p_i:p_i+1], features[n_i:n_i+1])
-            
-            del features
-            loss_triplet /= (args.train_batch_size * args.negs_num_per_query)
-            
-            optimizer.zero_grad()
-            loss_triplet.backward()
-            optimizer.step()
-            
-            # Keep track of all losses by appending them to epoch_losses
-            batch_loss = loss_triplet.item()
-            epoch_losses = np.append(epoch_losses, batch_loss)
-            del loss_triplet
-        
-        logging.debug(f"Epoch[{epoch_num:02d}]({loop_num}/{loops_num}): " +
-                      f"current batch triplet loss = {batch_loss:.4f}, " +
-                      f"average epoch triplet loss = {epoch_losses.mean():.4f}")
+    classifiers[current_group_num] = classifiers[current_group_num].cpu()
+    util.move_to_device(classifiers_optimizers[current_group_num], "cpu")
     
-    logging.info(f"Finished epoch {epoch_num:02d} in {str(datetime.now() - epoch_start_time)[:-7]}, "
-                 f"average epoch triplet loss = {epoch_losses.mean():.4f}")
+    logging.debug(f"Epoch {epoch_num:02d} in {str(datetime.now() - epoch_start_time)[:-7]}, "
+                  f"loss = {epoch_losses.mean():.4f}")
     
-    # Compute recalls on validation set
+    #### Evaluation
     recalls, recalls_str = test.test(args, val_ds, model)
-    logging.info(f"Recalls on val set {val_ds}: {recalls_str}")
-    
-    is_best = recalls[1] > best_r5
-    
+    logging.info(f"Epoch {epoch_num:02d} in {str(datetime.now() - epoch_start_time)[:-7]}, {val_ds}: {recalls_str[:20]}")
+    is_best = recalls[0] > best_val_recall1
+    best_val_recall1 = max(recalls[0], best_val_recall1)
     # Save checkpoint, which contains all training parameters
-    util.save_checkpoint(args, {
-        "epoch_num": epoch_num, "model_state_dict": model.state_dict(),
-        "optimizer_state_dict": optimizer.state_dict(), "recalls": recalls, "best_r5": best_r5,
-        "not_improved_num": not_improved_num
-    }, is_best, filename="last_model.pth")
-    
-    # If recall@5 did not improve for "many" epochs, stop training
-    if is_best:
-        logging.info(f"Improved: previous best R@5 = {best_r5:.1f}, current R@5 = {recalls[1]:.1f}")
-        best_r5 = recalls[1]
-        not_improved_num = 0
-    else:
-        not_improved_num += 1
-        logging.info(f"Not improved: {not_improved_num} / {args.patience}: best R@5 = {best_r5:.1f}, current R@5 = {recalls[1]:.1f}")
-        if not_improved_num >= args.patience:
-            logging.info(f"Performance did not improve for {not_improved_num} epochs. Stop training.")
-            break
+    util.save_checkpoint({
+        "epoch_num": epoch_num + 1,
+        "model_state_dict": model.state_dict(),
+        "optimizer_state_dict": model_optimizer.state_dict(),
+        "classifiers_state_dict": [c.state_dict() for c in classifiers],
+        "optimizers_state_dict": [c.state_dict() for c in classifiers_optimizers],
+        "best_val_recall1": best_val_recall1
+    }, is_best, args.output_folder)
 
 
-logging.info(f"Best R@5: {best_r5:.1f}")
 logging.info(f"Trained for {epoch_num+1:02d} epochs, in total in {str(datetime.now() - start_time)[:-7]}")
 
-#### Test best model on test set
-best_model_state_dict = torch.load(join(args.save_dir, "best_model.pth"))["model_state_dict"]
+#### Test best model on test set v1
+best_model_state_dict = torch.load(f"{args.output_folder}/best_model.pth")
 model.load_state_dict(best_model_state_dict)
 
-recalls, recalls_str = test.test(args, test_ds, model, test_method=args.test_method)
-logging.info(f"Recalls on {test_ds}: {recalls_str}")
+logging.info(f"Now testing on the test set: {test_ds}")
+recalls, recalls_str = test.test(args, test_ds, model, args.num_preds_to_save)
+logging.info(f"{test_ds}: {recalls_str}")
+
+logging.info("Experiment finished (without any errors)")
