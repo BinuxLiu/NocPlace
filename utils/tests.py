@@ -86,7 +86,7 @@ def test(args: Namespace, eval_ds: Dataset, model: torch.nn.Module,
                                          batch_size=args.infer_batch_size, pin_memory=(args.device == "cuda"))
         all_descriptors = np.empty((len(eval_ds), args.fc_output_dim), dtype="float32")
 
-        database_descriptors_dir = os.path.join(eval_ds.dataset_folder, f"database_{args.backbone}_{args.fc_output_dim}.npy")
+        database_descriptors_dir = os.path.join(args.test_set_folder, f"database_{args.backbone}_{args.fc_output_dim}.npy")
         if os.path.isfile(database_descriptors_dir) == 1:
             database_descriptors = np.load(database_descriptors_dir)
         else: 
@@ -151,7 +151,7 @@ def test_tokyo(args: Namespace, eval_ds: Dataset, model: torch.nn.Module,
                                          batch_size=args.infer_batch_size, pin_memory=(args.device == "cuda"))
         all_descriptors = np.empty((len(eval_ds), args.fc_output_dim), dtype="float32")
 
-        database_descriptors_dir = os.path.join(eval_ds.dataset_folder, f"database_{args.backbone}_{args.fc_output_dim}.npy")
+        database_descriptors_dir = os.path.join(args.test_set_folder, f"database_{args.backbone}_{args.fc_output_dim}.npy")
         if os.path.isfile(database_descriptors_dir) == 1:
             database_descriptors = np.load(database_descriptors_dir)
         else: 

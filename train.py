@@ -117,7 +117,7 @@ for epoch_num in range(start_epoch_num, args.epochs_num):
     epoch_losses = np.zeros((0, 1), dtype=np.float32)
     for iteration in tqdm(range(args.iterations_per_epoch), ncols=100):
         images, targets, _, inherited_descriptors = next(dataloader_iterator)
-        images, targets, inherited_descriptors = images.to(args.device), targets.to(args.device), day_descriptors.to(args.device)
+        images, targets, inherited_descriptors = images.to(args.device), targets.to(args.device), inherited_descriptors.to(args.device)
         
         if args.augmentation_device == "cuda":
             images = gpu_augmentation(images)

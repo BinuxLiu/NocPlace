@@ -42,10 +42,10 @@ if args.use_ikt:
     train_ds = InheritDataset(args.train_set_folder)
     tests.inherit(args, train_ds, model)
 else:
-    if args.dataset_folder.split("/")[-3] == "tokyo247":
+    if args.test_set_folder.split("/")[-3] == "tokyo247":
 
         test_ds = TestDataset(args.test_set_folder, queries_folder="queries",
-                            positive_dist_threshold=args.positive_dist_threshold)
+                             positive_dist_threshold=args.positive_dist_threshold)
 
         recalls, recalls_str, recalls_day, recalls_sunset, recalls_night = tests.test_tokyo(args, test_ds, model, args.num_preds_to_save)
 
