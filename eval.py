@@ -47,7 +47,7 @@ else:
         test_ds = TestDataset(args.test_set_folder, queries_folder="queries",
                             positive_dist_threshold=args.positive_dist_threshold)
 
-        recalls, recalls_str, recalls_day, recalls_sunset, recalls_night = test.test_tokyo(args, test_ds, model)
+        recalls, recalls_str, recalls_day, recalls_sunset, recalls_night = test.test_tokyo(args, test_ds, model, args.num_preds_to_save)
 
         logging.info(f"All queries' recalls on {test_ds}: {recalls_str}")
         logging.info(f"Day queries' Recalls on {test_ds}: {recalls_day}")

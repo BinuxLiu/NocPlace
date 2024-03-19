@@ -13,11 +13,7 @@ def parse_arguments(is_training: bool = True):
     parser.add_argument("--min_images_per_class", type=int, default=10, help="_")
     # Model parameters
     parser.add_argument("--backbone", type=str, default="ResNet18",
-                        choices=["VGG16",
-                                 "ResNet18", "ResNet50", "ResNet101", "ResNet152",
-                                 "EfficientNet_B0", "EfficientNet_B1", "EfficientNet_B2",
-                                 "EfficientNet_B3", "EfficientNet_B4", "EfficientNet_B5", 
-                                 "EfficientNet_B6", "EfficientNet_B7"], help="_")
+                        choices=["VGG16", "ResNet18", "ResNet50", "ResNet101", "ResNet152"], help="_")
     parser.add_argument("--fc_output_dim", type=int, default=512,
                         help="Output dimension of final fully connected layer")
     parser.add_argument("--train_all_layers", default=False, action="store_true",
@@ -75,6 +71,12 @@ def parse_arguments(is_training: bool = True):
                         help="path of the folder with test images (split in database/queries)")
     parser.add_argument("--save_dir", type=str, default="default",
                         help="name of directory on which to save the logs, under logs/save_dir")
+    # Knowledge distillation parameters
+    parser.add_argument("--use_ikt", action="store_true", 
+                        help="inherited knowledge transfer")
+    parser.add_argument('--T', type=float, default=4.0, help='temperature for SoftTarget')
+    parser.add_argument("--lambda_ikt", type=float, default=1.0, help = "hyper-parameter")
+    parser.add_argument("--efficient_ram_testing", action='store_true', help="_")
     
     args = parser.parse_args()
     
