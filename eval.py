@@ -42,7 +42,6 @@ if args.use_ikt:
     test_ds = InheritDataset(args.train_set_folder)
     test.inherit(args, test_ds, model)
 else:
-
     if args.dataset_folder.split("/")[-3] == "tokyo247":
 
         test_ds = TestDataset(args.test_set_folder, queries_folder="queries",
