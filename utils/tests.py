@@ -9,7 +9,7 @@ from argparse import Namespace
 from torch.utils.data.dataset import Subset
 from torch.utils.data import DataLoader, Dataset
 
-import visualizations
+import utils.visualizations as visualizations
 
 
 # Compute R@1, R@5, R@10, R@20

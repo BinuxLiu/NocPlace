@@ -9,11 +9,11 @@ from datetime import datetime
 import torchvision.transforms as T
 
 import test
-import util
-import parser
-import commons
-import cosface_loss
-import augmentations
+import utils.util as util
+import utils.parser as parser
+import utils.commons as commons
+from losses import cosface_loss, ikt_loss
+import utils.augmentations as augmentations
 from cosplace_model import cosplace_network
 from datasets.test_dataset import TestDataset
 from datasets.train_dataset import TrainDataset
@@ -43,6 +43,8 @@ model = model.to(args.device).train()
 
 #### Optimizer
 criterion = torch.nn.CrossEntropyLoss()
+if args.use_ikt:
+    criterion_ikt = ikt_loss.SoftTarget(args.T)
 model_optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
 #### Datasets
@@ -114,8 +116,8 @@ for epoch_num in range(start_epoch_num, args.epochs_num):
     
     epoch_losses = np.zeros((0, 1), dtype=np.float32)
     for iteration in tqdm(range(args.iterations_per_epoch), ncols=100):
-        images, targets, _ = next(dataloader_iterator)
-        images, targets = images.to(args.device), targets.to(args.device)
+        images, targets, _, inherited_descriptors = next(dataloader_iterator)
+        images, targets, inherited_descriptors = images.to(args.device), targets.to(args.device), day_descriptors.to(args.device)
         
         if args.augmentation_device == "cuda":
             images = gpu_augmentation(images)
@@ -127,9 +129,13 @@ for epoch_num in range(start_epoch_num, args.epochs_num):
             descriptors = model(images)
             output = classifiers[current_group_num](descriptors, targets)
             loss = criterion(output, targets)
+            if args.use_ikt:
+                inherited_output = classifiers[current_group_num](inherited_descriptors, targets)
+                loss_ikt = criterion_ikt(output, inherited_output) * args.lambda_kd
+                loss = loss + loss_ikt
             loss.backward()
             epoch_losses = np.append(epoch_losses, loss.item())
-            del loss, output, images
+            del loss, output, images, inherited_descriptors
             model_optimizer.step()
             classifiers_optimizers[current_group_num].step()
         else:  # Use AMP 16
