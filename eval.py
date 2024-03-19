@@ -39,8 +39,8 @@ model = model.to(args.device)
 
 
 if args.use_ikt:
-    test_ds = InheritDataset(args.train_set_folder)
-    test.inherit(args, test_ds, model)
+    train_ds = InheritDataset(args.train_set_folder)
+    test.inherit(args, train_ds, model)
 else:
     if args.dataset_folder.split("/")[-3] == "tokyo247":
 
