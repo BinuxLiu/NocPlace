@@ -4,7 +4,7 @@ import logging
 import multiprocessing
 from datetime import datetime
 
-import test
+import tests
 import parser
 import commons
 from cosplace_model import cosplace_network
@@ -40,14 +40,14 @@ model = model.to(args.device)
 
 if args.use_ikt:
     train_ds = InheritDataset(args.train_set_folder)
-    test.inherit(args, train_ds, model)
+    tests.inherit(args, train_ds, model)
 else:
     if args.dataset_folder.split("/")[-3] == "tokyo247":
 
         test_ds = TestDataset(args.test_set_folder, queries_folder="queries",
                             positive_dist_threshold=args.positive_dist_threshold)
 
-        recalls, recalls_str, recalls_day, recalls_sunset, recalls_night = test.test_tokyo(args, test_ds, model, args.num_preds_to_save)
+        recalls, recalls_str, recalls_day, recalls_sunset, recalls_night = tests.test_tokyo(args, test_ds, model, args.num_preds_to_save)
 
         logging.info(f"All queries' recalls on {test_ds}: {recalls_str}")
         logging.info(f"Day queries' Recalls on {test_ds}: {recalls_day}")
@@ -57,5 +57,5 @@ else:
         test_ds = TestDataset(args.test_set_folder, queries_folder="queries_night",
                               positive_dist_threshold=args.positive_dist_threshold)
 
-        recalls, recalls_str = test.test(args, test_ds, model, args.num_preds_to_save)
+        recalls, recalls_str = tests.test(args, test_ds, model, args.num_preds_to_save)
         logging.info(f"{test_ds}: {recalls_str}")
