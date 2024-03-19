@@ -79,17 +79,6 @@ def get_backbone(backbone_name : str, train_all_layers : bool) -> Tuple[torch.nn
                     p.requires_grad = False
             logging.debug("Train last layers of the VGG-16, freeze the previous ones")
 
-    elif backbone_name.startswith("EfficientNet"):
-        if train_all_layers:
-            logging.debug(f"Train all layers of the {backbone_name}")
-        else:
-            for name, child in backbone.features.named_children():
-                if name == "5": # Freeze layers before block 5
-                    break
-                for params in child.parameters():
-                    params.requires_grad = False
-            logging.debug(f"Train only the last three blocks of the {backbone_name}, freeze the previous ones")
-        layers = list(backbone.children())[:-2] # Remove avg pooling and FC layer
     
     backbone = torch.nn.Sequential(*layers)
     features_dim = CHANNELS_NUM_IN_LAST_CONV[backbone_name]
