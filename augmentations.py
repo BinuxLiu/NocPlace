@@ -1,88 +1,61 @@
-import os
-import sys
+
 import torch
-import random
-import logging
-import traceback
-import numpy as np
+from typing import Tuple, Union
+import torchvision.transforms as T
 
 
-class InfiniteDataLoader(torch.utils.data.DataLoader):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.dataset_iterator = super().__iter__()
+class DeviceAgnosticColorJitter(T.ColorJitter):
+    def __init__(self, brightness: float = 0., contrast: float = 0., saturation: float = 0., hue: float = 0.):
+        """This is the same as T.ColorJitter but it only accepts batches of images and works on GPU"""
+        super().__init__(brightness=brightness, contrast=contrast, saturation=saturation, hue=hue)
     
-    def __iter__(self):
-        return self
+    def forward(self, images: torch.Tensor) -> torch.Tensor:
+        assert len(images.shape) == 4, f"images should be a batch of images, but it has shape {images.shape}"
+        B, C, H, W = images.shape
+        # Applies a different color jitter to each image
+        color_jitter = super(DeviceAgnosticColorJitter, self).forward
+        augmented_images = [color_jitter(img).unsqueeze(0) for img in images]
+        augmented_images = torch.cat(augmented_images)
+        assert augmented_images.shape == torch.Size([B, C, H, W])
+        return augmented_images
+
+
+class DeviceAgnosticRandomResizedCrop(T.RandomResizedCrop):
+    def __init__(self, size: Union[int, Tuple[int, int]], scale: float):
+        """This is the same as T.RandomResizedCrop but it only accepts batches of images and works on GPU"""
+        super().__init__(size=size, scale=scale, antialias=True)
     
-    def __next__(self):
-        try:
-            batch = next(self.dataset_iterator)
-        except StopIteration:
-            self.dataset_iterator = super().__iter__()
-            batch = next(self.dataset_iterator)
-        return batch
+    def forward(self, images: torch.Tensor) -> torch.Tensor:
+        assert len(images.shape) == 4, f"images should be a batch of images, but it has shape {images.shape}"
+        B, C, H, W = images.shape
+        # Applies a different color jitter to each image
+        random_resized_crop = super(DeviceAgnosticRandomResizedCrop, self).forward
+        augmented_images = [random_resized_crop(img).unsqueeze(0) for img in images]
+        augmented_images = torch.cat(augmented_images)
+        return augmented_images
 
 
-def make_deterministic(seed: int = 0):
-    """Make results deterministic. If seed == -1, do not make deterministic.
-        Running your script in a deterministic way might slow it down.
-        Note that for some packages (eg: sklearn's PCA) this function is not enough.
+if __name__ == "__main__":
     """
-    seed = int(seed)
-    if seed == -1:
-        return
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
-
-
-def setup_logging(output_folder: str, exist_ok: bool = False, console: str = "debug",
-                  info_filename: str = "info.log", debug_filename: str = "debug.log"):
-    """Set up logging files and console output.
-    Creates one file for INFO logs and one for DEBUG logs.
-    Args:
-        output_folder (str): creates the folder where to save the files.
-        exist_ok (boolean): if False throw a FileExistsError if output_folder already exists
-        debug (str):
-            if == "debug" prints on console debug messages and higher
-            if == "info"  prints on console info messages and higher
-            if == None does not use console (useful when a logger has already been set)
-        info_filename (str): the name of the info file. if None, don't create info file
-        debug_filename (str): the name of the debug file. if None, don't create debug file
+    You can run this script to visualize the transformations, and verify that
+    the augmentations are applied individually on each image of the batch.
     """
-    if not exist_ok and os.path.exists(output_folder):
-        raise FileExistsError(f"{output_folder} already exists!")
-    os.makedirs(output_folder, exist_ok=True)
-    base_formatter = logging.Formatter('%(asctime)s   %(message)s', "%Y-%m-%d %H:%M:%S")
-    logger = logging.getLogger('')
-    logger.setLevel(logging.DEBUG)
+    from PIL import Image
+    # Import skimage in here, so it is not necessary to install it unless you run this script
+    from skimage import data
     
-    if info_filename is not None:
-        info_file_handler = logging.FileHandler(f'{output_folder}/{info_filename}')
-        info_file_handler.setLevel(logging.INFO)
-        info_file_handler.setFormatter(base_formatter)
-        logger.addHandler(info_file_handler)
-    
-    if debug_filename is not None:
-        debug_file_handler = logging.FileHandler(f'{output_folder}/{debug_filename}')
-        debug_file_handler.setLevel(logging.DEBUG)
-        debug_file_handler.setFormatter(base_formatter)
-        logger.addHandler(debug_file_handler)
-    
-    if console is not None:
-        console_handler = logging.StreamHandler()
-        if console == "debug":
-            console_handler.setLevel(logging.DEBUG)
-        if console == "info":
-            console_handler.setLevel(logging.INFO)
-        console_handler.setFormatter(base_formatter)
-        logger.addHandler(console_handler)
-    
-    def my_handler(type_, value, tb):
-        logger.info("\n" + "".join(traceback.format_exception(type, value, tb)))
-        logging.info("Experiment finished (with some errors)")
-    sys.excepthook = my_handler
+    # Initialize DeviceAgnosticRandomResizedCrop
+    random_crop = DeviceAgnosticRandomResizedCrop(size=[256, 256], scale=[0.5, 1])
+    # Create a batch with 2 astronaut images
+    pil_image = Image.fromarray(data.astronaut())
+    tensor_image = T.functional.to_tensor(pil_image).unsqueeze(0)
+    images_batch = torch.cat([tensor_image, tensor_image])
+    # Apply augmentation (individually on each of the 2 images)
+    augmented_batch = random_crop(images_batch)
+    # Convert to PIL images
+    augmented_image_0 = T.functional.to_pil_image(augmented_batch[0])
+    augmented_image_1 = T.functional.to_pil_image(augmented_batch[1])
+    # Visualize the original image, as well as the two augmented ones
+    pil_image.show()
+    augmented_image_0.show()
+    augmented_image_1.show()
