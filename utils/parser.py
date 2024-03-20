@@ -67,8 +67,9 @@ def parse_arguments(is_training: bool = True):
                             help="path of the folder with training images")
         parser.add_argument("--val_set_folder", type=str, required=True,
                             help="path of the folder with val images (split in database/queries)")
-    parser.add_argument("--test_set_folder", type=str, required=True,
-                        help="path of the folder with test images (split in database/queries)")
+    else:
+        parser.add_argument("--test_set_folder", type=str, required=True,
+                            help="path of the folder with test images (split in database/queries)")
     parser.add_argument("--save_dir", type=str, default="default",
                         help="name of directory on which to save the logs, under logs/save_dir")
     # Knowledge distillation parameters

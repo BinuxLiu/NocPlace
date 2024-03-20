@@ -94,7 +94,7 @@ class TrainDataset(torch.utils.data.Dataset):
             tensor_image = self.transform(tensor_image)
         
         if self.use_ikt:
-            inherited_descriptor = np.load(image_path.replace("train", "train_feat").replace(".jpg", ".npy"))
+            inherited_descriptor = np.load(image_path.replace("night", "feat").replace(".jpg", ".npy"))
         else:
             inherited_descriptor = np.zeros(1)
 

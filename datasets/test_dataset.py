@@ -10,7 +10,7 @@ import datasets.dataset_utils as dataset_utils
 
 class TestDataset(data.Dataset):
     def __init__(self, dataset_folder, database_folder="database",
-                 queries_folder="queries", positive_dist_threshold=25,
+                 queries_folder="queries_night", positive_dist_threshold=25,
                  image_size=512, resize_test_imgs=False):
         self.database_folder = dataset_folder + "/" + database_folder
         self.queries_folder = dataset_folder + "/" + queries_folder

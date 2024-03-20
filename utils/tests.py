@@ -18,7 +18,7 @@ RECALL_VALUES = [1, 5, 10, 20]
 
 def test_efficient_ram_usage(args: Namespace, eval_ds: Dataset, model: torch.nn.Module,
                              num_preds_to_save: int = 0) -> Tuple[np.ndarray, str]:
-    
+    # TODO: This test method is not use the partial-divide-and-conquer strategy.
     model = model.eval()
     distances = np.empty([eval_ds.queries_num, eval_ds.database_num], dtype=np.float32)
     

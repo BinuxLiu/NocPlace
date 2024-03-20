@@ -17,6 +17,8 @@ import utils.augmentations as augmentations
 from cosplace_model import cosplace_network
 from datasets.test_dataset import TestDataset
 from datasets.train_dataset import TrainDataset
+from datasets.inherit_dataset import InheritDataset
+import utils.tests as tests
 
 torch.backends.cudnn.benchmark = True  # Provides a speedup
 
@@ -41,6 +43,12 @@ if args.resume_model is not None:
 
 model = model.to(args.device).train()
 
+# if args.use_ikt:
+#     train_ds = InheritDataset(args.train_set_folder)
+#     tests.inherit(args, train_ds, model)
+
+#     del train_ds
+
 #### Optimizer
 criterion = torch.nn.CrossEntropyLoss()
 if args.use_ikt:
@@ -48,7 +56,7 @@ if args.use_ikt:
 model_optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
 #### Datasets
-groups = [TrainDataset(args, args.train_set_folder, M=args.M, alpha=args.alpha, N=args.N, L=args.L,
+groups = [TrainDataset(args, args.train_set_folder + "_night", M=args.M, alpha=args.alpha, N=args.N, L=args.L,
                        current_group=n, min_images_per_class=args.min_images_per_class) for n in range(args.groups_num)]
 # Each group has its own classifier, which depends on the number of classes in the group
 classifiers = [cosface_loss.MarginCosineProduct(args.fc_output_dim, len(group)) for group in groups]
@@ -58,13 +66,10 @@ logging.info(f"Using {len(groups)} groups")
 logging.info(f"The {len(groups)} groups have respectively the following number of classes {[len(g) for g in groups]}")
 logging.info(f"The {len(groups)} groups have respectively the following number of images {[g.get_images_num() for g in groups]}")
 
-val_ds = TestDataset(args.val_set_folder, positive_dist_threshold=args.positive_dist_threshold,
+val_ds = TestDataset(args.val_set_folder, queries_folder="queries_night",
+                     positive_dist_threshold=args.positive_dist_threshold,
                      image_size=args.image_size, resize_test_imgs=args.resize_test_imgs)
-test_ds = TestDataset(args.test_set_folder, queries_folder="queries_v1",
-                      positive_dist_threshold=args.positive_dist_threshold,
-                      image_size=args.image_size, resize_test_imgs=args.resize_test_imgs)
 logging.info(f"Validation set: {val_ds}")
-logging.info(f"Test set: {test_ds}")
 
 #### Resume
 if args.resume_train:
@@ -131,7 +136,7 @@ for epoch_num in range(start_epoch_num, args.epochs_num):
             loss = criterion(output, targets)
             if args.use_ikt:
                 inherited_output = classifiers[current_group_num](inherited_descriptors, targets)
-                loss_ikt = criterion_ikt(output, inherited_output) * args.lambda_kd
+                loss_ikt = criterion_ikt(output, inherited_output) * args.lambda_ikt
                 loss = loss + loss_ikt
             loss.backward()
             epoch_losses = np.append(epoch_losses, loss.item())
@@ -173,13 +178,5 @@ for epoch_num in range(start_epoch_num, args.epochs_num):
 
 
 logging.info(f"Trained for {epoch_num+1:02d} epochs, in total in {str(datetime.now() - start_time)[:-7]}")
-
-#### Test best model on test set v1
-best_model_state_dict = torch.load(f"{args.output_folder}/best_model.pth")
-model.load_state_dict(best_model_state_dict)
-
-logging.info(f"Now testing on the test set: {test_ds}")
-recalls, recalls_str = test.test(args, test_ds, model, args.num_preds_to_save)
-logging.info(f"{test_ds}: {recalls_str}")
 
 logging.info("Experiment finished (without any errors)")
