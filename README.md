@@ -5,9 +5,9 @@ NocPlace can theoretically be extended to any VPR method and painlessly improve 
 
 ## Experimental results
 
-![avatar](./Figs/exp_vpr_1.png)
+![avatar](./figs/exp_vpr_1.png)
 
-![avatar](./Figs/exp_vpr_2.png)
+![avatar](./figs/exp_vpr_2.png)
 
 ## Train
 

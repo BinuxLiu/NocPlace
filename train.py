@@ -43,11 +43,11 @@ if args.resume_model is not None:
 
 model = model.to(args.device).train()
 
-# if args.use_ikt:
-#     train_ds = InheritDataset(args.train_set_folder)
-#     tests.inherit(args, train_ds, model)
+if args.use_ikt:
+    train_ds = InheritDataset(args.train_set_folder)
+    tests.inherit(args, train_ds, model)
 
-#     del train_ds
+    del train_ds
 
 #### Optimizer
 criterion = torch.nn.CrossEntropyLoss()
