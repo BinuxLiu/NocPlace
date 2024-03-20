@@ -72,7 +72,7 @@ def test_efficient_ram_usage(args: Namespace, eval_ds: Dataset, model: torch.nn.
 
 
 def test(args: Namespace, eval_ds: Dataset, model: torch.nn.Module,
-         num_preds_to_save: int = 0) -> Tuple[np.ndarray, str]:
+         num_preds_to_save: int = 0, is_training = False) -> Tuple[np.ndarray, str]:
     """Compute descriptors of the given dataset and compute the recalls."""
     
     if args.efficient_ram_testing:
@@ -86,7 +86,10 @@ def test(args: Namespace, eval_ds: Dataset, model: torch.nn.Module,
                                          batch_size=args.infer_batch_size, pin_memory=(args.device == "cuda"))
         all_descriptors = np.empty((len(eval_ds), args.fc_output_dim), dtype="float32")
 
-        database_descriptors_dir = os.path.join(args.test_set_folder, f"database_{args.backbone}_{args.fc_output_dim}.npy")
+        if is_training:
+            database_descriptors_dir = os.path.join(args.val_set_folder, f"database_{args.backbone}_{args.fc_output_dim}.npy")
+        else:
+            database_descriptors_dir = os.path.join(args.test_set_folder, f"database_{args.backbone}_{args.fc_output_dim}.npy")
         if os.path.isfile(database_descriptors_dir) == 1:
             database_descriptors = np.load(database_descriptors_dir)
         else: 

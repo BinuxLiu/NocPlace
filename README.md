@@ -9,6 +9,8 @@ NocPlace can theoretically be extended to any VPR method and painlessly improve 
 
 ![avatar](./figs/exp_vpr_2.png)
 
+## Datasets
+
 ## Train
 
 ```
@@ -26,4 +28,4 @@ Parts of this repo are inspired by the following repositories:
 
 * CosPlace
 * EigenPlaces
-* Deep-Visual-Geo-localization-Benchmark
+* Visual-Geo-localization-Benchmark

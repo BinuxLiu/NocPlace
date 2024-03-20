@@ -50,6 +50,7 @@ if args.test_set_folder.split("/")[-3] == "tokyo247":
     logging.info(f"Sunset queries' recalls on {test_ds}: {recalls_sunset}")
     logging.info(f"Night queries' recalls on {test_ds}: {recalls_night}")
 else:
+
     test_ds = TestDataset(args.test_set_folder, queries_folder="queries_night",
                             positive_dist_threshold=args.positive_dist_threshold)
 

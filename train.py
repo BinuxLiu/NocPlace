@@ -81,6 +81,12 @@ if args.resume_train:
 else:
     best_val_recall1 = start_epoch_num = 0
 
+if args.use_ikt:
+    recalls, recalls_str = tests.test(args, val_ds, model, is_training=True)
+    logging.info(f"{val_ds}: {recalls_str}")
+    is_best = recalls[0] > best_val_recall1
+    best_val_recall1 = max(recalls[0], best_val_recall1)
+
 #### Train / evaluation loop
 logging.info("Start training ...")
 logging.info(f"There are {len(groups[0])} classes for the first group, " +
@@ -162,7 +168,7 @@ for epoch_num in range(start_epoch_num, args.epochs_num):
                   f"loss = {epoch_losses.mean():.4f}")
     
     #### Evaluation
-    recalls, recalls_str = test.test(args, val_ds, model)
+    recalls, recalls_str = tests.test(args, val_ds, model, is_training=True)
     logging.info(f"Epoch {epoch_num:02d} in {str(datetime.now() - epoch_start_time)[:-7]}, {val_ds}: {recalls_str[:20]}")
     is_best = recalls[0] > best_val_recall1
     best_val_recall1 = max(recalls[0], best_val_recall1)
