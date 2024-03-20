@@ -14,7 +14,7 @@ import utils.parser as parser
 import utils.commons as commons
 from losses import cosface_loss, ikt_loss
 import utils.augmentations as augmentations
-from cosplace_model import cosplace_network
+from nocplace_model import cosplace_network, vit_network
 from datasets.test_dataset import TestDataset
 from datasets.train_dataset import TrainDataset
 from datasets.inherit_dataset import InheritDataset
@@ -32,7 +32,8 @@ logging.info(f"Arguments: {args}")
 logging.info(f"The outputs are being saved in {args.output_folder}")
 
 #### Model
-model = cosplace_network.GeoLocalizationNet(args.backbone, args.fc_output_dim, args.train_all_layers)
+# model = cosplace_network.GeoLocalizationNet(args.backbone, args.fc_output_dim, args.train_all_layers)
+model = vit_network.GeoLocalizationNet(args.backbone, args.fc_output_dim)
 
 logging.info(f"There are {torch.cuda.device_count()} GPUs and {multiprocessing.cpu_count()} CPUs.")
 
@@ -44,7 +45,7 @@ if args.resume_model is not None:
 model = model.to(args.device).train()
 
 if args.use_ikt:
-    train_ds = InheritDataset(args.train_set_folder)
+    train_ds = InheritDataset(args.train_set_folder, image_size=args.image_size, resize_test_imgs=args.resize_test_imgs)
     tests.inherit(args, train_ds, model)
 
     del train_ds
