@@ -7,7 +7,7 @@ from datetime import datetime
 import utils.tests as tests
 import utils.parser as parser
 import utils.commons as commons
-from nocplace_model import cosplace_network
+from nocplace_model import cosplace_network, vit_network
 from datasets.test_dataset import TestDataset
 from datasets.inherit_dataset import InheritDataset
 
@@ -23,7 +23,8 @@ logging.info(f"Arguments: {args}")
 logging.info(f"The outputs are being saved in {args.output_folder}")
 
 #### Model
-model = cosplace_network.GeoLocalizationNet(args.backbone, args.fc_output_dim)
+# model = cosplace_network.GeoLocalizationNet(args.backbone, args.fc_output_dim)
+model = vit_network.GLNetWrapper(args.backbone)
 
 logging.info(f"There are {torch.cuda.device_count()} GPUs and {multiprocessing.cpu_count()} CPUs.")
 

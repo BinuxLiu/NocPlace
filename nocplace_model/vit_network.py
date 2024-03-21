@@ -1,5 +1,6 @@
 import torch
 from torch import nn
+import torchvision.transforms as transforms
 
 from nocplace_model.layers import Flatten, L2Norm, GeM
 import nocplace_model.salad_layer as Salad
@@ -55,6 +56,24 @@ class GeoLocalizationNet(nn.Module):
         self.aggregator = Salad.SALAD()
     
     def forward(self, x):
+        x = self.backbone(x)
+        x = self.aggregator(x)
+        return x
+    
+class GLNetWrapper(torch.nn.Module):
+    def __init__(self, backbone : str):
+        super().__init__()
+        self.backbone = DINOv2(backbone = backbone)
+        self.channels_num = CHANNELS_NUM[backbone]
+        self.aggregator = Salad.SALAD()
+
+    def forward(self, x):
+        b, c, h, w = x.shape
+        # DINO wants height and width as multiple of 14, therefore resize them
+        # to the nearest multiple of 14
+        h = round(h / 14) * 14
+        w = round(w / 14) * 14
+        x = transforms.functional.resize(x, [h, w], antialias=True)
         x = self.backbone(x)
         x = self.aggregator(x)
         return x

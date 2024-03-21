@@ -44,11 +44,11 @@ if args.resume_model is not None:
 
 model = model.to(args.device).train()
 
-# if args.use_ikt:
-#     train_ds = InheritDataset(args.train_set_folder, image_size=args.image_size, resize_test_imgs=args.resize_test_imgs)
-#     tests.inherit(args, train_ds, model)
+if args.use_ikt:
+    train_ds = InheritDataset(args.train_set_folder, image_size=args.image_size, resize_test_imgs=args.resize_test_imgs)
+    tests.inherit(args, train_ds, model)
 
-#     del train_ds
+    del train_ds
 
 #### Optimizer
 criterion = torch.nn.CrossEntropyLoss()
@@ -82,11 +82,11 @@ if args.resume_train:
 else:
     best_val_recall1 = start_epoch_num = 0
 
-# if args.use_ikt:
-#     recalls, recalls_str = tests.test(args, val_ds, model, is_training=True)
-#     logging.info(f"{val_ds}: {recalls_str}")
-#     is_best = recalls[0] > best_val_recall1
-#     best_val_recall1 = max(recalls[0], best_val_recall1)
+if args.use_ikt:
+    recalls, recalls_str = tests.test(args, val_ds, model, is_training=True)
+    logging.info(f"{val_ds}: {recalls_str}")
+    is_best = recalls[0] > best_val_recall1
+    best_val_recall1 = max(recalls[0], best_val_recall1)
 
 #### Train / evaluation loop
 logging.info("Start training ...")
