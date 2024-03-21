@@ -3,6 +3,11 @@
 This is the official pytorch implementation of the paper "NocPlace: Nocturnal Visual Place Recognition via Generative and Inherited Knowledge Transfer".
 NocPlace can theoretically be extended to any VPR method and painlessly improve the recall in night scenes.
 
+[arXiv](https://arxiv.org/abs/2402.17159)
+
+**New**: We are now fine-tuning SALAD based on the repo of CosPlace and NocPlace. Although there are some improvements, it is not perfect.
+We will continue to optimize the performance of NocPlace in foundation models.
+
 ## Experimental results
 
 ![avatar](./figs/exp_vpr_1.png)
@@ -29,3 +34,4 @@ Parts of this repo are inspired by the following repositories:
 * CosPlace
 * EigenPlaces
 * Visual-Geo-localization-Benchmark
+* SALAD
