@@ -1,6 +1,7 @@
 # NocPlace
 
 "authors want a good checkpoint - good, but how does that compare to DSA with a good checkpoint?"
+
 So I showed you that NocPlace with worse checkpoint is still better than DSA.
 
 This is the official pytorch implementation of the paper "NocPlace: Nocturnal Visual Place Recognition via Generative and Inherited Knowledge Transfer".
