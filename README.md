@@ -4,6 +4,15 @@
 
 So I showed you that NocPlace with worse checkpoint is still better than DSA.
 
+
+
+
+
+
+
+
+
+
 This is the official pytorch implementation of the paper "NocPlace: Nocturnal Visual Place Recognition via Generative and Inherited Knowledge Transfer".
 NocPlace can theoretically be extended to any VPR method and painlessly improve the recall in night scenes.
 
