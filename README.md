@@ -1,13 +1,5 @@
 # NocPlace
 
-"authors want a good checkpoint - good, but how does that compare to DSA with a good checkpoint?"
-
-So I showed you that NocPlace with worse checkpoint is still better than DSA.
-
-
-
-
-
 
 
 
