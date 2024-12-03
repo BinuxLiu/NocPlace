@@ -2,8 +2,8 @@ import torch
 from torch import nn
 import torchvision.transforms as transforms
 
-from nocplace_model.layers import Flatten, L2Norm, GeM
-import nocplace_model.salad_layer as Salad
+from nocplace_models.layers import Flatten, L2Norm, GeM
+import nocplace_models.salad_layer as Salad
 
 
 CHANNELS_NUM = {
@@ -18,6 +18,7 @@ class DINOv2(nn.Module):
         super().__init__()
         assert backbone in CHANNELS_NUM, f"backbone must be one of {list(CHANNELS_NUM.keys())}"
         self.model = torch.hub.load('facebookresearch/dinov2', backbone)
+        print(self.model)
         self.channels_num = CHANNELS_NUM[backbone]
         self.num_trainable_blocks = num_trainable_blocks
         self.norm_layer = norm_layer

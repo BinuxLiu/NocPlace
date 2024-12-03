@@ -14,7 +14,7 @@ import utils.parser as parser
 import utils.commons as commons
 from losses import cosface_loss, ikt_loss
 import utils.augmentations as augmentations
-from nocplace_model import cosplace_network, vit_network
+from nocplace_models import cosplace_network, vit_network
 from datasets.test_dataset import TestDataset
 from datasets.train_dataset import TrainDataset
 from datasets.inherit_dataset import InheritDataset

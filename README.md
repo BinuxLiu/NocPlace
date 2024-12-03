@@ -5,8 +5,6 @@ NocPlace can theoretically be extended to any VPR method and painlessly improve 
 
 [arXiv](https://arxiv.org/abs/2402.17159)
 
-**New**: We are now fine-tuning SALAD based on the repo of CosPlace and NocPlace. Although there are some improvements, it is not perfect.
-We will continue to optimize the performance of NocPlace in foundation models.
 
 ## Experimental results
 
@@ -31,7 +29,7 @@ python eval.py --backbone ResNet50 --fc_output_dim 512 --resume_model ResNet50_5
 
 Parts of this repo are inspired by the following repositories:
 
-* CosPlace
+* CosPlace (Mar 12, 2024)
 * EigenPlaces
 * Visual-Geo-localization-Benchmark
 * SALAD

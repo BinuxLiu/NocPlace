@@ -7,7 +7,7 @@ from datetime import datetime
 import utils.tests as tests
 import utils.parser as parser
 import utils.commons as commons
-from nocplace_model import cosplace_network, vit_network
+from nocplace_models import cosplace_network, vit_network
 from datasets.test_dataset import TestDataset
 from datasets.inherit_dataset import InheritDataset
 
